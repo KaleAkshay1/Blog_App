@@ -1,0 +1,31 @@
+import { mkdir, writeFile } from 'node:fs/promises'
+
+const images = {
+  'photo-1470770841072-f978cf4d019e': 'alpine-lake',
+  'photo-1494438639946-1ebd1d20bf85': 'thoughtful-design',
+  'photo-1464822759023-fed622ff2c3b': 'mountain-path',
+  'photo-1496181133206-80ce9b88a853': 'quiet-technology',
+  'photo-1493106641515-6b5631de4bb9': 'pottery',
+  'photo-1441974231531-c6227db76b6e': 'forest-light',
+  'photo-1442512595331-e89e73853f31': 'sunday-coffee',
+  'photo-1455390582262-044cdead277a': 'notebook',
+  'photo-1507842217343-583bb7270b66': 'bookshop',
+  'photo-1534528741775-53994a69daeb': 'olivia',
+  'photo-1500648767791-00dcc994a43e': 'alex',
+  'photo-1524504388940-b1c1722653e1': 'sophie',
+  'photo-1506794778202-cad84cf45f1d': 'james',
+}
+const output = new URL('../public/images/', import.meta.url)
+await mkdir(output, { recursive: true })
+const sources = {}
+for (const [id, name] of Object.entries(images)) {
+  const width = ['olivia', 'alex', 'sophie', 'james'].includes(name) ? 100 : 1200
+  const source = `https://images.unsplash.com/${id}?auto=format&fit=crop&w=${width}&q=85`
+  const response = await fetch(source, { signal: AbortSignal.timeout(30000) })
+  if (!response.ok || !response.headers.get('content-type')?.startsWith('image/'))
+    throw new Error(`Could not download ${name}: ${response.status}`)
+  await writeFile(new URL(`${name}.jpg`, output), Buffer.from(await response.arrayBuffer()))
+  sources[`${name}.jpg`] = source
+  console.log(`Downloaded ${name}.jpg`)
+}
+await writeFile(new URL('sources.json', output), JSON.stringify(sources, null, 2) + '\n')
