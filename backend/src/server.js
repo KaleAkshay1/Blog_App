@@ -7,13 +7,29 @@ import { seedDatabase } from './seeders/seed-data.js'
 let server
 let shuttingDown = false
 
-async function shutdown(signal) {
+async function shutdown(reason, exitCode = 0) {
   if (shuttingDown) return
   shuttingDown = true
-  logger.info(`${signal} received; shutting down`)
-  if (server) await new Promise((resolve) => server.close(resolve))
-  await disconnectDatabase()
-  await closeLogger()
+  logger.info('Shutting down the API', { reason })
+  const timeout = setTimeout(() => process.exit(1), 10000)
+  timeout.unref()
+
+  try {
+    if (server?.listening) {
+      await new Promise((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve()))
+      })
+    }
+    await disconnectDatabase()
+    logger.info('API shutdown complete')
+  } catch (error) {
+    logger.error('API shutdown failed', { error: error.message, stack: error.stack })
+    exitCode = 1
+  } finally {
+    await closeLogger()
+    clearTimeout(timeout)
+    process.exitCode = exitCode
+  }
 }
 
 try {
@@ -31,21 +47,19 @@ try {
     logger.info(`Story API is ready at http://${config.host}:${config.port}/api`),
   )
   server.on('error', (error) => {
-    logger.error('HTTP server error', { message: error.message, stack: error.stack })
-    shutdown('Server error').finally(() => {
-      process.exitCode = 1
-    })
+    logger.error('HTTP server error', { error: error.message, stack: error.stack })
+    void shutdown('Server error', 1)
   })
   process.once('SIGINT', () => {
-    shutdown('SIGINT').finally(() => process.exit())
+    void shutdown('SIGINT').finally(() => process.exit(process.exitCode || 0))
   })
   process.once('SIGTERM', () => {
-    shutdown('SIGTERM').finally(() => process.exit())
+    void shutdown('SIGTERM').finally(() => process.exit(process.exitCode || 0))
   })
 } catch (error) {
-  logger.error('Could not start Story API', { message: error.message, stack: error.stack })
-  logger.error('Start MongoDB locally or configure MONGODB_URI in backend/.env')
-  await disconnectDatabase().catch(() => {})
-  await closeLogger()
-  process.exitCode = 1
+  logger.error('Could not start Story API', { error: error.message, stack: error.stack })
+  if (error.name === 'MongooseServerSelectionError') {
+    logger.error('Start MongoDB locally or configure MONGODB_URI in backend/.env')
+  }
+  await shutdown('Startup failure', 1)
 }

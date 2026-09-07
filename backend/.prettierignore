@@ -1,6 +1,5 @@
 node_modules/
 logs/
-.local/
 package-lock.json
 .env
 .env.*

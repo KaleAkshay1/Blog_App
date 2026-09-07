@@ -11,7 +11,7 @@ mongoose.connection.on('connected', () => {
 mongoose.connection.on('reconnected', () => logger.info('MongoDB reconnected'))
 mongoose.connection.on('disconnected', () => logger.info('MongoDB disconnected'))
 mongoose.connection.on('error', (error) => {
-  logger.error('MongoDB connection error', { message: error.message, stack: error.stack })
+  logger.error('MongoDB connection error', { error: error.message, stack: error.stack })
 })
 
 export async function connectDatabase() {

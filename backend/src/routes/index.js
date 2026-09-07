@@ -8,6 +8,7 @@ import bookmarkRoutes from './bookmark.route.js'
 import topicRoutes from './topic.route.js'
 import newsletterRoutes from './newsletter.route.js'
 import healthRoutes from './health.route.js'
+import notificationRoutes from './notification.route.js'
 
 const router = Router()
 
@@ -20,6 +21,7 @@ router.use('/me', meRoutes)
 router.use('/bookmarks', bookmarkRoutes)
 router.use('/topics', topicRoutes)
 router.use('/newsletter', newsletterRoutes)
+router.use('/notifications', notificationRoutes)
 router.use(apiNotFound)
 
 export default router

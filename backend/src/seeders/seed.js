@@ -11,7 +11,7 @@ try {
     count ? `Created ${count} sample stories.` : 'Stories already exist. Nothing was changed.',
   )
 } catch (error) {
-  logger.error('Could not seed the database', { message: error.message, stack: error.stack })
+  logger.error('Could not seed the database', { error: error.message, stack: error.stack })
   process.exitCode = 1
 } finally {
   await disconnectDatabase()

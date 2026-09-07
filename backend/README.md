@@ -1,6 +1,6 @@
 # Story backend
 
-Express 5 and MongoDB API for Story. The project root contains only `frontend/` and `backend/`; each app owns its package, lockfile, configuration, tests, and dependencies.
+Express 5 and MongoDB API for Story. The frontend and backend each own their package, lockfile, configuration, and dependencies. Run them from separate terminals.
 
 ## Run locally
 
@@ -20,12 +20,13 @@ Run subsequent backend commands from this folder:
 | -------------------------- | -------------------------------------------------------- |
 | `npm.cmd run dev`          | Start the API and restart it when source files change    |
 | `npm.cmd start`            | Start the API without watching                           |
-| `npm.cmd test`             | Run API integration tests                                |
 | `npm.cmd run seed`         | Add sample stories only if the posts collection is empty |
 | `npm.cmd run format`       | Format backend code                                      |
 | `npm.cmd run format:check` | Check backend formatting                                 |
 
-## Code organization
+## MVC organization
+
+Mongoose schemas form the model layer. Controllers handle requests and return JSON; routes map URLs to those controllers. The React frontend is the view layer, so the API does not need server-rendered templates.
 
 ```text
 backend/
@@ -36,6 +37,7 @@ backend/
       index.js            Mount each route group under /api
       auth.route.js       Register, login, logout, and current session
       post.route.js       Public stories and owner-only story mutations
+      comment.route.js    Comments and replies nested under a story
       me.route.js         The signed-in author's stories
       bookmark.route.js   Saved stories
       topic.route.js      Topic counts
@@ -43,14 +45,13 @@ backend/
       health.route.js     API/database health
     controllers/          Named request handlers for each route group
     middleware/           Sessions, access checks, ID checks, rate limits,
-                          origin checks, and centralized errors
+                          origin checks, request logging, and centralized errors
     validators/           Zod schemas for body and query validation
-    models/               Mongoose User, Post, and Subscriber schemas
+    models/               Mongoose User, Post, Subscriber, Like, and Comment schemas
     config/               Environment, database lifecycle, and logging
     constants/            Shared categories
     utils/                Sessions, serialization, slugs, and app errors
     seeders/              Sample stories and standalone seed entry point
-  tests/api.test.js        API integration suite
   .vscode/launch.json      Debug API launch configuration
   .env.example            Available environment settings
   package.json
@@ -79,7 +80,27 @@ node -e "console.log(require('node:crypto').randomBytes(48).toString('hex'))"
 
 Without it, development uses a random secret for each API process, so restarting the API signs users out. Accounts and stories persist.
 
-`PORT` defaults to 5000 and `HOST` to 127.0.0.1. `CLIENT_URL` contains the allowed frontend origins. `LOG_LEVEL` controls logging; `LOG_TO_FILE=false` disables log files. Otherwise, rotated logs are stored in `logs/combined.log` and `logs/error.log`. Set `SEED_ON_START=false` to skip sample data.
+`PORT` defaults to 5000 and `HOST` to 127.0.0.1. `CLIENT_URL` contains the allowed frontend origins. Set `SEED_ON_START=false` to skip sample data.
+
+### Winston logging
+
+[Winston](https://github.com/winstonjs/winston) is configured in `src/config/logger.js`. Logs include timestamps and levels, with colors in an interactive development terminal. Database connections, reconnections, shutdowns, server startup, account activity, story changes, and request failures are logged.
+
+Each HTTP request gets an `X-Request-ID` response header. Request summaries include that ID, the method, path, response status, and duration. Bodies, cookies, and query strings are excluded; MongoDB connection strings are redacted from error messages and stack traces.
+
+Example startup output:
+
+```text
+2026-09-06 14:00:00.000 [story-api] info: Connecting to MongoDB...
+2026-09-06 14:00:00.050 [story-api] info: MongoDB connected {"host":"127.0.0.1","database":"story_blog"}
+2026-09-06 14:00:00.100 [story-api] info: Story API is ready at http://127.0.0.1:5000/api
+```
+
+`LOG_LEVEL=http` includes request summaries; `info` keeps lifecycle and application events. JSON logs are stored in `logs/combined.log` and `logs/error.log`, with up to five 5 MB files per log. Set `LOG_TO_FILE=false` for terminal output only. Log files are ignored by Git and Prettier.
+
+### Prettier formatting
+
+[Prettier](https://prettier.io/docs/configuration) is installed locally in this backend. `npm.cmd run format` applies `.prettierrc.json` to the code: two spaces, single quotes, no semicolons, trailing commas, and a 100-character print width. `npm.cmd run format:check` checks formatting without changing files. The frontend has its own configuration and commands.
 
 ## API routes
 
@@ -105,13 +126,50 @@ All routes return JSON and authenticated requests use an HTTP-only session cooki
 
 The API uses bcrypt password hashing, seven-day JWT cookies, Zod validation, origin checks for mutations, Helmet headers, rate limits, and server-side ownership checks. Newsletter subscriptions are stored in MongoDB; email delivery is not configured.
 
-## Tests
+## Likes, comments, and replies
 
-`npm.cmd test` creates a uniquely named `story_test_*` database and drops only that database afterward. Set `TEST_MONGODB_URI` to use a different MongoDB test server. Tests cover authentication, validation, authorization, private drafts, publishing, filtering, bookmarks, subscriptions, and error responses.
+Published articles support one like per account and threaded comments. Anyone can read the counts and conversation; writes require the existing session cookie. Drafts do not expose these endpoints, including to their author. Unpublishing retains discussion data privately; deleting a post removes its likes and comments.
 
-Browser tests live in [frontend/tests/e2e](../frontend/tests/e2e) and run with `npm.cmd run test:e2e` from `frontend`. Install dependencies in both folders first.
+| Method | Route                                        | Purpose                                                                       |
+| ------ | -------------------------------------------- | ----------------------------------------------------------------------------- |
+| GET    | `/api/posts/:id/engagement`                  | Like count, whether the current user liked it, and active comment/reply count |
+| PUT    | `/api/posts/:id/like`                        | Set like state with `{ "liked": true }` or `{ "liked": false }`               |
+| GET    | `/api/posts/:id/comments`                    | Paginated top-level threads, newest first                                     |
+| POST   | `/api/posts/:id/comments`                    | Add a comment with `{ "content": "..." }`                                     |
+| GET    | `/api/posts/:id/comments/:commentId/replies` | Paginated replies to a top-level thread, oldest first                         |
+| POST   | `/api/posts/:id/comments/:commentId/replies` | Reply to a comment or an existing reply with `{ "content": "..." }`           |
+| PATCH  | `/api/posts/:id/comments/:commentId`         | Edit your own comment or reply with `{ "content": "..." }`                    |
+| DELETE | `/api/posts/:id/comments/:commentId`         | Remove your own comment text while preserving the conversation                |
 
-## Production
+These routes use the MongoDB post ID, not its slug. List endpoints accept `page` and `limit` (default 10, maximum 30). Comment bodies contain plain text between 1 and 2,000 characters after trimming. The author and parent thread are assigned by the server. Comment creation, replies, and edits share a limit of 60 requests per account per 15 minutes.
+
+The `Like` model has a unique `(post, user)` index, and setting the same like state repeatedly is idempotent. Like responses contain `likeCount` and `likedByMe`; lists of users who liked a story are not exposed.
+
+The `Comment` model stores replies under the original top-level comment, with a separate `replyTo` reference identifying the comment being answered. A reply to a reply therefore stays in the same readable thread. Only the original author can edit or delete their contribution. Deleting clears the stored text and hides the author from the response, leaving a placeholder so other replies remain readable. Pagination and thread reply totals include placeholders; the overall `commentCount` counts only active comments and replies.
+
+New collections and indexes are managed by Mongoose when the backend connects. Existing articles work without reseeding. Controllers log like and comment activity through Winston using IDs and request IDs, without logging comment text.
+
+## In-app notifications, sharing, and reports
+
+New likes and comments notify the story author. Replies notify the author of the comment being answered and the story author, with duplicate recipients and self-notifications excluded. Unliking removes the corresponding like notification; deleting a comment removes its notification. Existing likes and comments are not backfilled.
+
+Notifications are persisted in the `Notification` collection and are visible only to their recipient. Their feed and unread count exclude unpublished or deleted stories. Deleting a story also removes its notifications and reports. Repeated like requests and repeated shares to the same recipient do not generate duplicate notifications.
+
+| Method | Route                                     | Purpose                                                               |
+| ------ | ----------------------------------------- | --------------------------------------------------------------------- |
+| GET    | `/api/notifications?page=1&limit=20`      | Your notifications, pagination, and unread count                      |
+| PATCH  | `/api/notifications/:notificationId/read` | Mark one of your notifications as read                                |
+| PATCH  | `/api/notifications/read-all`             | Mark all your notifications as read                                   |
+| POST   | `/api/posts/:id/share`                    | Send a story to a registered member with `{ "email": "..." }`         |
+| POST   | `/api/posts/:id/reports`                  | Record a private report with `{ "reason": "spam", "details": "..." }` |
+
+All these routes require authentication. Share recipients are looked up by exact email; there is no public member directory. Reporting supports `spam`, `harassment`, `misinformation`, `copyright`, and `other`, with optional details up to 2,000 characters. The `Report` collection stores one pending report per reporter and story. Reports are not exposed to the story author. Reports are stored for review; an administrative review screen and automated moderation are not included.
+
+Likes, shares, and reports share a limit of 60 requests per account per 15 minutes. The frontend refreshes notification counts every 30 seconds while visible and when the tab regains focus. No email or operating-system push notifications are sent.
+
+Run `npm.cmd run test:social` from this folder for the social-feature regression suite. It uses Node's built-in test runner and a unique `story_social_test_*` MongoDB database, and deletes only that test database afterward. Set `TEST_MONGODB_URI` to use a separate test server.
+
+## Deployment
 
 Run with `NODE_ENV=production`, a private `MONGODB_URI`, a strong `JWT_SECRET`, and the exact frontend origin in `CLIENT_URL`. Build and host the frontend separately with an SPA fallback. Use HTTPS and a same-origin reverse proxy: serve the frontend at `/` and proxy `/api` to this API. Cookies are secure and same-site; cross-site cookie authentication is not configured.
 

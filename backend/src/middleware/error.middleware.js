@@ -27,10 +27,11 @@ export function errorHandler(error, req, res, next) {
   const status = error.status || 500
   if (status === 500) {
     logger.error('Unhandled request error', {
-      message: error.message,
+      error: error.message,
       stack: error.stack,
       method: req.method,
-      path: req.originalUrl,
+      path: req.originalUrl.split('?')[0],
+      requestId: req.requestId,
     })
   }
   res.status(status).json({

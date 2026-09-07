@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { AuthDialog } from '@/components/auth-dialog'
+import { NotificationBell } from '@/components/notification-bell'
 import { Avatar } from '@/components/story-card'
 import { useAuth } from '@/context/auth'
 import { cn } from '@/lib/utils'
@@ -100,7 +101,7 @@ export function Layout() {
         Skip to content
       </a>
       <header className="site-header">
-        <div className="page-shell flex h-[84px] items-center justify-between gap-5">
+        <div className="page-shell flex h-[84px] items-center justify-between gap-2 sm:gap-5">
           <Logo />
           <nav
             aria-label="Main navigation"
@@ -114,7 +115,8 @@ export function Layout() {
               Our story <ArrowUpRight className="inline size-3.5" />
             </NavLink>
           </nav>
-          <div className="flex items-center gap-2 sm:gap-4">
+          <div className="flex items-center gap-1 sm:gap-4">
+            {user && <NotificationBell />}
             <Button
               variant="ghost"
               size="icon"

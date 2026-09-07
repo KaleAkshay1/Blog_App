@@ -32,6 +32,41 @@ export type Post = {
   updatedAt: string
 }
 export type PostList = { posts: Post[]; total: number; page: number; pages: number }
+export type PostEngagement = { likeCount: number; likedByMe: boolean; commentCount: number }
+export type StoryNotification = {
+  id: string
+  type: 'like' | 'comment' | 'reply' | 'share'
+  actor: Author
+  post: Pick<Post, 'id' | 'slug' | 'title'>
+  readAt: string | null
+  createdAt: string
+}
+export type NotificationPage = {
+  notifications: StoryNotification[]
+  unreadCount: number
+  total: number
+  page: number
+  pages: number
+}
+export type StoryComment = {
+  id: string
+  parentId: string | null
+  content: string
+  author: Author | null
+  replyTo: { id: string; authorName: string | null } | null
+  isDeleted: boolean
+  editedAt: string | null
+  createdAt: string
+  replyCount: number
+}
+export type CommentPage = {
+  comments: StoryComment[]
+  total: number
+  commentCount?: number
+  page: number
+  pages: number
+}
+export type CommentMutation = { comment: StoryComment; commentCount: number; replyCount: number }
 export type PostInput = Pick<
   Post,
   'title' | 'excerpt' | 'content' | 'coverImage' | 'category' | 'status'

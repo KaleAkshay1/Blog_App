@@ -1,5 +1,10 @@
 import { Post } from '../models/post.model.js'
+import { logger } from '../config/logger.js'
 import { User } from '../models/user.model.js'
+import { Like } from '../models/like.model.js'
+import { Comment } from '../models/comment.model.js'
+import { Notification } from '../models/notification.model.js'
+import { Report } from '../models/report.model.js'
 import { AppError } from '../utils/app-error.js'
 import { calculateReadTime, createSlug, populateAuthor } from '../utils/post.js'
 import { serializePost } from '../utils/serializers.js'
@@ -62,6 +67,7 @@ export async function createPost(req, res) {
     publishedAt: data.status === 'published' ? new Date() : null,
   })
   await post.populate(populateAuthor)
+  logger.info('Story created', { postId: post.id, status: post.status, requestId: req.requestId })
   res.status(201).json({ post: serializePost(post) })
 }
 
@@ -76,6 +82,7 @@ export async function updatePost(req, res) {
   if (post.status === 'published' && !post.publishedAt) post.publishedAt = new Date()
   await post.save()
   await post.populate(populateAuthor)
+  logger.info('Story updated', { postId: post.id, status: post.status, requestId: req.requestId })
   res.json({ post: serializePost(post) })
 }
 
@@ -86,6 +93,11 @@ export async function deletePost(req, res) {
     throw new AppError(403, 'You can only delete your own stories.')
   }
   await post.deleteOne()
+  await Like.deleteMany({ post: post._id })
+  await Comment.deleteMany({ post: post._id })
+  await Notification.deleteMany({ post: post._id })
+  await Report.deleteMany({ post: post._id })
   await User.updateMany({ bookmarks: post._id }, { $pull: { bookmarks: post._id } })
+  logger.info('Story deleted', { postId: post.id, requestId: req.requestId })
   res.json({ message: 'Story deleted.' })
 }

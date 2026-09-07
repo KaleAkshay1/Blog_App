@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useLocation, useParams } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import { ArrowLeft, Clock3, Link as LinkIcon, PenLine } from 'lucide-react'
 import { toast } from 'sonner'
@@ -10,9 +10,12 @@ import { Avatar, CoverImage, SaveButton, StoryCard } from '@/components/story-ca
 import { ErrorState, Loading } from '@/components/feedback'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/context/auth'
+import { StoryDiscussion } from '@/components/discussion/story-discussion'
+import { StoryActions } from '@/components/social/story-actions'
 
 export default function Story() {
   const { slug } = useParams()
+  const location = useLocation()
   const { user } = useAuth()
   const { data, loading, error, reload } = useResource<{ post: Post }>(`/posts/${slug}`)
   const post = data?.post
@@ -22,6 +25,13 @@ export default function Story() {
   useEffect(() => {
     if (post) document.title = `${post.title} — Story`
   }, [post])
+  useEffect(() => {
+    if (!post || location.hash !== `#comments-${post.id}`) return
+    const frame = window.requestAnimationFrame(() =>
+      document.getElementById(`comments-${post.id}`)?.scrollIntoView({ behavior: 'smooth' }),
+    )
+    return () => window.cancelAnimationFrame(frame)
+  }, [post, location.hash])
   const share = async () => {
     try {
       await navigator.clipboard.writeText(window.location.href)
@@ -108,12 +118,12 @@ export default function Story() {
           </div>
         </div>
         {post.status === 'published' && (
-          <Button variant="outline" onClick={() => void share()}>
-            <LinkIcon />
-            Share this story
-          </Button>
+          <StoryActions key={`${post.id}:${user?.id || 'guest'}`} post={post} />
         )}
       </div>
+      {post.status === 'published' && (
+        <StoryDiscussion key={`${post.id}:${user?.id || 'guest'}`} postId={post.id} />
+      )}
       {more.length > 0 && (
         <section className="mt-20">
           <div className="mb-7 flex items-center justify-between">

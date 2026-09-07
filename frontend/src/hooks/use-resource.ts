@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { api } from '@/lib/api'
 
 export function useResource<T>(path: string | null) {
@@ -6,6 +6,7 @@ export function useResource<T>(path: string | null) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [version, setVersion] = useState(0)
+  const reload = useCallback(() => setVersion((value) => value + 1), [])
   useEffect(() => {
     if (!path) {
       setLoading(false)
@@ -27,5 +28,5 @@ export function useResource<T>(path: string | null) {
       })
     return () => controller.abort()
   }, [path, version])
-  return { data, loading, error, reload: () => setVersion((value) => value + 1) }
+  return { data, loading, error, reload }
 }

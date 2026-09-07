@@ -6,7 +6,7 @@ import { config } from './env.js'
 
 const { combine, timestamp, errors, printf, colorize, json } = winston.format
 const redactConnectionStrings = winston.format((info) => {
-  for (const key of ['message', 'stack']) {
+  for (const key of ['message', 'stack', 'error']) {
     if (typeof info[key] === 'string') {
       info[key] = info[key].replace(/mongodb(?:\+srv)?:\/\/[^\s"'<>]+/gi, '[redacted MongoDB URI]')
     }

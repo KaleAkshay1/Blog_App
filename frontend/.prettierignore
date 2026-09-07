@@ -1,8 +1,5 @@
 node_modules/
 dist/
-.local/
-test-results/
-playwright-report/
 package-lock.json
 *.tsbuildinfo
 .env

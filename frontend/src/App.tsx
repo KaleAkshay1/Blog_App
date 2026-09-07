@@ -10,6 +10,7 @@ const Story = lazy(() => import('@/pages/story'))
 const Topics = lazy(() => import('@/pages/topics'))
 const About = lazy(() => import('@/pages/about'))
 const Editor = lazy(() => import('@/pages/editor'))
+const Notifications = lazy(() => import('@/pages/notifications'))
 
 export default function App() {
   return (
@@ -21,6 +22,7 @@ export default function App() {
           <Route path="about" element={<About />} />
           <Route path="story/:slug" element={<Story />} />
           <Route element={<RequireAuth />}>
+            <Route path="notifications" element={<Notifications />} />
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="saved" element={<Saved />} />
             <Route path="write" element={<Editor />} />
