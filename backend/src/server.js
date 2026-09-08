@@ -63,3 +63,5 @@ try {
   }
   await shutdown('Startup failure', 1)
 }
+
+console.log("test")
