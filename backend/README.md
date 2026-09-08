@@ -38,16 +38,18 @@ backend/
       auth.route.js       Register, login, logout, and current session
       post.route.js       Public stories and owner-only story mutations
       comment.route.js    Comments and replies nested under a story
+      user.route.js       Follow state and follow/unfollow user mutations
       me.route.js         The signed-in author's stories
       bookmark.route.js   Saved stories
       topic.route.js      Topic counts
       newsletter.route.js Newsletter subscriptions
       health.route.js     API/database health
     controllers/          Named request handlers for each route group
+    services/             Business rules for follows and notification delivery
     middleware/           Sessions, access checks, ID checks, rate limits,
                           origin checks, request logging, and centralized errors
     validators/           Zod schemas for body and query validation
-    models/               Mongoose User, Post, Subscriber, Like, and Comment schemas
+    models/               Mongoose schemas, including Follow and existing social features
     config/               Environment, database lifecycle, and logging
     constants/            Shared categories
     utils/                Sessions, serialization, slugs, and app errors
@@ -168,6 +170,24 @@ All these routes require authentication. Share recipients are looked up by exact
 Likes, shares, and reports share a limit of 60 requests per account per 15 minutes. The frontend refreshes notification counts every 30 seconds while visible and when the tab regains focus. No email or operating-system push notifications are sent.
 
 Run `npm.cmd run test:social` from this folder for the social-feature regression suite. It uses Node's built-in test runner and a unique `story_social_test_*` MongoDB database, and deletes only that test database afterward. Set `TEST_MONGODB_URI` to use a separate test server.
+
+## Follow and unfollow users
+
+Follows are stored in a separate `Follow` collection. If Alice follows Bob, Alice is `follower` and Bob is `following`. A unique `(follower, following)` index prevents duplicate relationships; an index on `following` supports follower counts. Existing users and stories need no reseeding or data migration.
+
+| Method | Route                       | Purpose                                    |
+| ------ | --------------------------- | ------------------------------------------ |
+| GET    | `/api/users/:userId/follow` | Read counts and the current viewer's state |
+| PUT    | `/api/users/:userId/follow` | Follow this user (session required)        |
+| DELETE | `/api/users/:userId/follow` | Unfollow this user (session required)      |
+
+All three return `{ followerCount, followingCount, followedByMe }`. Counts describe the target user; `followedByMe` indicates whether the signed-in viewer follows that target and is false for guests. Responses are not cached. These endpoints expose counts and relationship state, not email addresses or follower lists.
+
+Mutation requests need no body. The acting user always comes from the session. User IDs must be valid MongoDB ObjectIds; missing users return 404, malformed IDs return 400, and self-follow/unfollow requests return 400. Both mutations are idempotent. Repeating a request leaves the same relationship state, and successful responses return counts from stored relationships.
+
+Follow and unfollow share a dedicated limit of 60 requests per account per 15 minutes. Business rules and Winston activity logs live in `services/follow.service.js`; controllers only call the service and respond. A relationship change updates one document, so this feature does not require multi-document transactions or a replica set.
+
+This stage includes author controls on story pages. Following feeds, follower lists, and publication notifications are separate upcoming features; following a user does not yet send notifications.
 
 ## Deployment
 

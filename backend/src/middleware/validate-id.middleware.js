@@ -1,5 +1,12 @@
 import mongoose from 'mongoose'
 
+export function validateUserId(req, res, next) {
+  if (!mongoose.isValidObjectId(req.params.userId)) {
+    return res.status(400).json({ message: 'Invalid user ID.' })
+  }
+  next()
+}
+
 export function validateNotificationId(req, res, next) {
   if (!mongoose.isValidObjectId(req.params.notificationId)) {
     return res.status(400).json({ message: 'Invalid notification ID.' })

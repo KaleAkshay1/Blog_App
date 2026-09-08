@@ -21,3 +21,6 @@ build/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Local project notes (keep off GitHub)
+/PROJECT_NOTES.md

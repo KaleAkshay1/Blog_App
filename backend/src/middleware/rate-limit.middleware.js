@@ -33,3 +33,10 @@ export const socialLimiter = rateLimit({
   keyGenerator: (req) => req.user.id,
   message: { message: 'Please wait a few minutes before sending more likes, shares, or reports.' },
 })
+
+export const followLimiter = rateLimit({
+  ...commonOptions,
+  limit: 60,
+  keyGenerator: (req) => req.user.id,
+  message: { message: 'Please wait a few minutes before following or unfollowing more people.' },
+})

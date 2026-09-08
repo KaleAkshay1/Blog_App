@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button'
 import { useAuth } from '@/context/auth'
 import { StoryDiscussion } from '@/components/discussion/story-discussion'
 import { StoryActions } from '@/components/social/story-actions'
+import { AuthorFollow } from '@/components/social/author-follow'
 
 export default function Story() {
   const { slug } = useParams()
@@ -88,6 +89,7 @@ export default function Story() {
             </div>
           </div>
           <span className="mx-1 h-7 w-px bg-border" />
+          <AuthorFollow author={post.author} />
           {post.status === 'published' && <SaveButton post={post} />}
           <Button variant="ghost" size="icon" aria-label="Copy story link" onClick={share}>
             <LinkIcon />

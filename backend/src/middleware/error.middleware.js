@@ -12,7 +12,11 @@ export function errorHandler(error, req, res, next) {
     return res.status(400).json({ message: error.issues[0]?.message || 'Please check your input.' })
   }
   if (error.code === 11000) {
-    return res.status(409).json({ message: 'An account with this email already exists.' })
+    const message =
+      error.keyPattern?.email || error.keyValue?.email
+        ? 'An account with this email already exists.'
+        : 'This record already exists.'
+    return res.status(409).json({ message })
   }
   if (error.type === 'entity.parse.failed') {
     return res.status(400).json({ message: 'Invalid JSON body.' })

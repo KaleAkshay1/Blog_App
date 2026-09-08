@@ -15,6 +15,11 @@ export const categories: Category[] = [
 ]
 export type Author = { id: string; name: string; avatar: string }
 export type User = Author & { email: string; bookmarks: string[] }
+export type FollowSummary = {
+  followerCount: number
+  followingCount: number
+  followedByMe: boolean
+}
 export type Post = {
   id: string
   slug: string

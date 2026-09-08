@@ -71,6 +71,7 @@ The Vite development and preview servers proxy `/api` to `http://127.0.0.1:5000`
 - Markdown stories with related articles, author details, and share-link copying.
 - Registration, sign-in, sign-out, and persistent reading lists.
 - Persistent article likes with a count and a reversible like button.
+- Follow/unfollow controls beside story authors, with follower and following counts.
 - Comments and replies with pagination, author-only editing/deletion, and sign-in prompts.
 - Author dashboard with private drafts and published articles.
 - Markdown editor with preview, cover-image URL, topic, word count, and reading-time estimate.
@@ -96,6 +97,14 @@ Signed-in members have a notification bell with an unread badge. Open it to see 
 Use **Share this story** to copy a link for anyone or send a story to another registered member by email. The recipient receives an in-app notification; no email is sent. Use **Report story** to submit a private reason and optional details. Reports are recorded for review and do not notify the story's author. There is currently no administrative review screen.
 
 New UI components live under `components/social/`, with notifications in `pages/notifications.tsx` and `context/notifications.tsx`. Drafts do not expose discussion, direct-share, or report controls.
+
+## Following authors
+
+On a story page, use **Follow** beside the author to follow them, or **Unfollow** to remove the relationship. Guests are prompted to sign in. Your own stories show your counts without a self-follow button.
+
+The control loads saved follow state from the API and updates counts after a successful change. Requests are guarded against repeated clicks; errors provide retry feedback. Switching accounts or authors resets the viewer-specific state. Changes made elsewhere appear when the page is reopened or refreshed.
+
+The reusable component is `components/social/author-follow.tsx`, and its API response type is `FollowSummary` in `lib/api.ts`. Following lists, a following feed, and new-post notifications will be added in subsequent tasks.
 
 ## Formatting
 
