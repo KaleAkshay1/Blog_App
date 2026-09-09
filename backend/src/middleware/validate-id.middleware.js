@@ -1,29 +1,30 @@
 import mongoose from 'mongoose'
+import ApiError from '../utils/ApiError.js'
 
 export function validateUserId(req, res, next) {
   if (!mongoose.isValidObjectId(req.params.userId)) {
-    return res.status(400).json({ message: 'Invalid user ID.' })
+    return next(new ApiError(400, 'Invalid user ID.'))
   }
   next()
 }
 
 export function validateNotificationId(req, res, next) {
   if (!mongoose.isValidObjectId(req.params.notificationId)) {
-    return res.status(400).json({ message: 'Invalid notification ID.' })
+    return next(new ApiError(400, 'Invalid notification ID.'))
   }
   next()
 }
 
 export function validateStoryId(req, res, next) {
   if (!mongoose.isValidObjectId(req.params.id)) {
-    return res.status(400).json({ message: 'Invalid story ID.' })
+    return next(new ApiError(400, 'Invalid story ID.'))
   }
   next()
 }
 
 export function validateCommentId(req, res, next) {
   if (!mongoose.isValidObjectId(req.params.commentId)) {
-    return res.status(400).json({ message: 'Invalid comment ID.' })
+    return next(new ApiError(400, 'Invalid comment ID.'))
   }
   next()
 }

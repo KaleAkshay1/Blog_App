@@ -1,8 +1,10 @@
 import { Report } from '../models/report.model.js'
 import { requirePublishedPost } from '../utils/engagement.js'
 import { reportSchema } from '../validators/social.validator.js'
+import ApiResponse from '../utils/ApiResponse.js'
+import asyncHandler from '../utils/asyncHandler.js'
 
-export async function reportPost(req, res) {
+export const reportPost = asyncHandler(async (req, res) => {
   const data = reportSchema.parse(req.body)
   await requirePublishedPost(req.params.id)
   await Report.init()
@@ -23,5 +25,9 @@ export async function reportPost(req, res) {
   } catch (error) {
     if (error.code !== 11000) throw error
   }
-  res.json({ message: 'Your report has been recorded. Thank you for letting us know.' })
-}
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(200, null, 'Your report has been recorded. Thank you for letting us know.'),
+    )
+})

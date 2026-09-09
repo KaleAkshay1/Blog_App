@@ -77,7 +77,31 @@ export type PostInput = Pick<
   'title' | 'excerpt' | 'content' | 'coverImage' | 'category' | 'status'
 >
 
-export async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
+export type ApiResponse<T> = {
+  status: number
+  data: T
+  message: string
+  success: true
+}
+
+export class ApiError extends Error {
+  readonly status: number
+  readonly success = false
+  readonly error: unknown[]
+
+  constructor(status: number, message: string, error: unknown[] = []) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+    this.error = error
+  }
+}
+
+// Use the full response when a caller needs the server's success message.
+export async function apiResponse<T = null>(
+  path: string,
+  options: RequestInit = {},
+): Promise<ApiResponse<T>> {
   let response: Response
   try {
     response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api${path}`, {
@@ -92,8 +116,42 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
     if (error instanceof DOMException && error.name === 'AbortError') throw error
     throw new Error('Unable to connect. Please check your connection and try again.')
   }
-  const data = await response.json().catch(() => null)
-  if (!response.ok)
-    throw new Error(data?.message || 'The server is unavailable. Please try again shortly.')
-  return data as T
+  const body: unknown = await response.json().catch((error: unknown) => {
+    if (error instanceof DOMException && error.name === 'AbortError') throw error
+    return null
+  })
+  const result = body && typeof body === 'object' ? body : null
+  const message =
+    result && 'message' in result && typeof result.message === 'string' ? result.message : ''
+
+  if (!response.ok) {
+    const details = result && 'error' in result && Array.isArray(result.error) ? result.error : []
+    throw new ApiError(
+      response.status,
+      message || 'The server is unavailable. Please try again shortly.',
+      details,
+    )
+  }
+
+  if (
+    !result ||
+    !('success' in result) ||
+    result.success !== true ||
+    !('status' in result) ||
+    result.status !== response.status ||
+    !('data' in result) ||
+    !message
+  ) {
+    throw new ApiError(
+      response.status,
+      'The server returned an invalid response. Please try again.',
+    )
+  }
+  return result as ApiResponse<T>
+}
+
+// Most screens only need the payload inside the standard response.
+export async function api<T = null>(path: string, options: RequestInit = {}): Promise<T> {
+  const response = await apiResponse<T>(path, options)
+  return response.data
 }

@@ -5,12 +5,14 @@ import { Like } from '../models/like.model.js'
 import { Comment } from '../models/comment.model.js'
 import { Notification } from '../models/notification.model.js'
 import { Report } from '../models/report.model.js'
-import { AppError } from '../utils/app-error.js'
+import ApiError from '../utils/ApiError.js'
+import ApiResponse from '../utils/ApiResponse.js'
+import asyncHandler from '../utils/asyncHandler.js'
 import { calculateReadTime, createSlug, populateAuthor } from '../utils/post.js'
 import { serializePost } from '../utils/serializers.js'
 import { postQuerySchema, postSchema } from '../validators/post.validator.js'
 
-export async function listPosts(req, res) {
+export const listPosts = asyncHandler(async (req, res) => {
   const query = postQuerySchema.parse(req.query)
   const filter = { status: 'published' }
   if (query.category) filter.category = query.category
@@ -32,32 +34,34 @@ export async function listPosts(req, res) {
       .limit(query.limit),
     Post.countDocuments(filter),
   ])
-  res.json({
-    posts: posts.map(serializePost),
-    total,
-    page: query.page,
-    pages: Math.ceil(total / query.limit),
-  })
-}
+  return res.status(200).json(
+    new ApiResponse(200, {
+      posts: posts.map(serializePost),
+      total,
+      page: query.page,
+      pages: Math.ceil(total / query.limit),
+    }),
+  )
+})
 
-export async function listOwnPosts(req, res) {
+export const listOwnPosts = asyncHandler(async (req, res) => {
   const posts = await Post.find({ author: req.user._id })
     .select('-content')
     .populate(populateAuthor)
     .sort({ updatedAt: -1 })
-  res.json({ posts: posts.map(serializePost) })
-}
+  return res.status(200).json(new ApiResponse(200, { posts: posts.map(serializePost) }))
+})
 
-export async function getPost(req, res) {
+export const getPost = asyncHandler(async (req, res) => {
   const post = await Post.findOne({ slug: req.params.slug }).populate(populateAuthor)
   const isOwner = post && String(post.author?._id) === req.user?.id
   if (!post || (post.status !== 'published' && !isOwner)) {
-    throw new AppError(404, 'This story could not be found.')
+    throw new ApiError(404, 'This story could not be found.')
   }
-  res.json({ post: serializePost(post) })
-}
+  return res.status(200).json(new ApiResponse(200, { post: serializePost(post) }))
+})
 
-export async function createPost(req, res) {
+export const createPost = asyncHandler(async (req, res) => {
   const data = postSchema.parse(req.body)
   const post = await Post.create({
     ...data,
@@ -68,29 +72,29 @@ export async function createPost(req, res) {
   })
   await post.populate(populateAuthor)
   logger.info('Story created', { postId: post.id, status: post.status, requestId: req.requestId })
-  res.status(201).json({ post: serializePost(post) })
-}
+  return res.status(201).json(new ApiResponse(201, { post: serializePost(post) }))
+})
 
-export async function updatePost(req, res) {
+export const updatePost = asyncHandler(async (req, res) => {
   const data = postSchema.parse(req.body)
   const post = await Post.findById(req.params.id)
-  if (!post) throw new AppError(404, 'This story could not be found.')
+  if (!post) throw new ApiError(404, 'This story could not be found.')
   if (String(post.author) !== req.user.id) {
-    throw new AppError(403, 'You can only edit your own stories.')
+    throw new ApiError(403, 'You can only edit your own stories.')
   }
   Object.assign(post, data, { readTime: calculateReadTime(data.content) })
   if (post.status === 'published' && !post.publishedAt) post.publishedAt = new Date()
   await post.save()
   await post.populate(populateAuthor)
   logger.info('Story updated', { postId: post.id, status: post.status, requestId: req.requestId })
-  res.json({ post: serializePost(post) })
-}
+  return res.status(200).json(new ApiResponse(200, { post: serializePost(post) }))
+})
 
-export async function deletePost(req, res) {
+export const deletePost = asyncHandler(async (req, res) => {
   const post = await Post.findById(req.params.id)
-  if (!post) throw new AppError(404, 'This story could not be found.')
+  if (!post) throw new ApiError(404, 'This story could not be found.')
   if (String(post.author) !== req.user.id) {
-    throw new AppError(403, 'You can only delete your own stories.')
+    throw new ApiError(403, 'You can only delete your own stories.')
   }
   await post.deleteOne()
   await Like.deleteMany({ post: post._id })
@@ -99,5 +103,5 @@ export async function deletePost(req, res) {
   await Report.deleteMany({ post: post._id })
   await User.updateMany({ bookmarks: post._id }, { $pull: { bookmarks: post._id } })
   logger.info('Story deleted', { postId: post.id, requestId: req.requestId })
-  res.json({ message: 'Story deleted.' })
-}
+  return res.status(200).json(new ApiResponse(200, null, 'Story deleted.'))
+})

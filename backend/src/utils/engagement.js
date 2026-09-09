@@ -1,13 +1,13 @@
 import { Post } from '../models/post.model.js'
 import { Comment } from '../models/comment.model.js'
-import { AppError } from './app-error.js'
+import ApiError from './ApiError.js'
 
 export async function requirePublishedPost(postId) {
   const post = await Post.findOne({ _id: postId, status: 'published' })
     .select('author title slug')
     .lean()
   if (!post) {
-    throw new AppError(404, 'This published story could not be found.')
+    throw new ApiError(404, 'This published story could not be found.')
   }
   return post
 }

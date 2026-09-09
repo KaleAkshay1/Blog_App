@@ -1,8 +1,10 @@
 import { Notification } from '../models/notification.model.js'
-import { AppError } from '../utils/app-error.js'
+import ApiError from '../utils/ApiError.js'
+import ApiResponse from '../utils/ApiResponse.js'
+import asyncHandler from '../utils/asyncHandler.js'
 import { notificationQuerySchema } from '../validators/social.validator.js'
 
-export async function listNotifications(req, res) {
+export const listNotifications = asyncHandler(async (req, res) => {
   const { page, limit } = notificationQuerySchema.parse(req.query)
   const [result] = await Notification.aggregate([
     { $match: { recipient: req.user._id } },
@@ -56,42 +58,51 @@ export async function listNotifications(req, res) {
     },
   ])
   const counts = result.counts[0] || { total: 0, unreadCount: 0 }
-  res.set('Cache-Control', 'no-store').json({
-    notifications: result.items.map((item) => ({
-      id: String(item._id),
-      type: item.type,
-      readAt: item.readAt,
-      createdAt: item.createdAt,
-      actor: item.actorData
-        ? {
-            id: String(item.actorData._id),
-            name: item.actorData.name,
-            avatar: item.actorData.avatar,
-          }
-        : { id: '', name: 'A former member', avatar: '' },
-      post: { id: String(item.postData._id), title: item.postData.title, slug: item.postData.slug },
-    })),
-    total: counts.total,
-    unreadCount: counts.unreadCount,
-    page,
-    pages: Math.ceil(counts.total / limit),
-  })
-}
+  return res
+    .status(200)
+    .set('Cache-Control', 'no-store')
+    .json(
+      new ApiResponse(200, {
+        notifications: result.items.map((item) => ({
+          id: String(item._id),
+          type: item.type,
+          readAt: item.readAt,
+          createdAt: item.createdAt,
+          actor: item.actorData
+            ? {
+                id: String(item.actorData._id),
+                name: item.actorData.name,
+                avatar: item.actorData.avatar,
+              }
+            : { id: '', name: 'A former member', avatar: '' },
+          post: {
+            id: String(item.postData._id),
+            title: item.postData.title,
+            slug: item.postData.slug,
+          },
+        })),
+        total: counts.total,
+        unreadCount: counts.unreadCount,
+        page,
+        pages: Math.ceil(counts.total / limit),
+      }),
+    )
+})
 
-export async function markRead(req, res) {
+export const markRead = asyncHandler(async (req, res) => {
   const notification = await Notification.findOneAndUpdate(
     { _id: req.params.notificationId, recipient: req.user._id },
     { $set: { readAt: new Date() } },
     { returnDocument: 'after' },
   )
-  if (!notification) throw new AppError(404, 'This notification could not be found.')
-  res.json({ message: 'Notification marked as read.' })
-}
+  if (!notification) throw new ApiError(404, 'This notification could not be found.')
+  return res.status(200).json(new ApiResponse(200, null, 'Notification marked as read.'))
+})
 
-export async function markAllRead(req, res) {
+export const markAllRead = asyncHandler(async (req, res) => {
   await Notification.updateMany(
     { recipient: req.user._id, readAt: null },
     { $set: { readAt: new Date() } },
   )
-  res.json({ message: 'All notifications marked as read.' })
-}
+  return res.status(200).json(new ApiResponse(200, null, 'All notifications marked as read.'))
+})

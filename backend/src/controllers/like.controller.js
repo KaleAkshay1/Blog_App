@@ -4,6 +4,8 @@ import { notifyActivity } from '../services/notification.service.js'
 import { logger } from '../config/logger.js'
 import { likeSchema } from '../validators/engagement.validator.js'
 import { countComments, requirePublishedPost } from '../utils/engagement.js'
+import ApiResponse from '../utils/ApiResponse.js'
+import asyncHandler from '../utils/asyncHandler.js'
 
 async function likeSummary(postId, userId) {
   const [likeCount, ownLike] = await Promise.all([
@@ -13,16 +15,19 @@ async function likeSummary(postId, userId) {
   return { likeCount, likedByMe: !!ownLike }
 }
 
-export async function getEngagement(req, res) {
+export const getEngagement = asyncHandler(async (req, res) => {
   await requirePublishedPost(req.params.id)
   const [likes, commentCount] = await Promise.all([
     likeSummary(req.params.id, req.user?._id),
     countComments(req.params.id),
   ])
-  res.set('Cache-Control', 'no-store').json({ ...likes, commentCount })
-}
+  return res
+    .status(200)
+    .set('Cache-Control', 'no-store')
+    .json(new ApiResponse(200, { ...likes, commentCount }))
+})
 
-export async function setLike(req, res) {
+export const setLike = asyncHandler(async (req, res) => {
   const { liked } = likeSchema.parse(req.body)
   const post = await requirePublishedPost(req.params.id)
   const filter = { post: req.params.id, user: req.user._id }
@@ -59,5 +64,8 @@ export async function setLike(req, res) {
     userId: req.user.id,
     requestId: req.requestId,
   })
-  res.set('Cache-Control', 'no-store').json(await likeSummary(req.params.id, req.user._id))
-}
+  return res
+    .status(200)
+    .set('Cache-Control', 'no-store')
+    .json(new ApiResponse(200, await likeSummary(req.params.id, req.user._id)))
+})

@@ -52,7 +52,8 @@ backend/
     models/               Mongoose schemas, including Follow and existing social features
     config/               Environment, database lifecycle, and logging
     constants/            Shared categories
-    utils/                Sessions, serialization, slugs, and app errors
+    utils/                Sessions, serialization, slugs, ApiError, ApiResponse,
+                          and asyncHandler
     seeders/              Sample stories and standalone seed entry point
   .vscode/launch.json      Debug API launch configuration
   .env.example            Available environment settings
@@ -107,6 +108,53 @@ Example startup output:
 ## API routes
 
 All routes return JSON and authenticated requests use an HTTP-only session cookie.
+
+### Response format and controller pattern
+
+Every controller is exported through `asyncHandler`. Return successful responses with
+`res.status(status).json(new ApiResponse(status, data, message))` and throw
+`new ApiError(status, message, error)` for expected failures. `ApiError` replaces the former
+`AppError` utility. Both utilities use `status` for the numeric HTTP status code.
+
+A successful `GET /api/auth/me` for a guest returns:
+
+```json
+{
+  "status": 200,
+  "data": { "user": null },
+  "message": "Success",
+  "success": true
+}
+```
+
+An unauthenticated request to a protected route returns HTTP 401:
+
+```json
+{
+  "status": 401,
+  "success": false,
+  "message": "Please sign in to continue.",
+  "error": []
+}
+```
+
+Payloads described below now live inside `data`, including pagination fields. Operations that
+only acknowledge a change return `data: null` with their text in `message`. Zod validation
+failures include `{ field, message }` entries in the `error` array.
+
+`asyncHandler` forwards controller and session-loading failures to
+`middleware/error.middleware.js` with `next(error)`.
+That middleware formats errors from controllers, authentication, ID and origin checks,
+rate limits, missing API routes, JSON parsing, and database validation/cast errors. HTTP 500 responses
+keep a generic message and empty error details; Winston retains the internal error and stack.
+Controllers only need local `try/catch` blocks for recovery, cleanup, or concurrency handling.
+
+The health route returns HTTP 200 with `data: { status: "ok", database: "connected" }` when
+MongoDB is connected. Otherwise it returns HTTP 503 with `success: false`, message
+`"Service unavailable."`, and `error: [{ database: "disconnected" }]`.
+
+The frontend's `api<T>()` helper returns `response.data`. Use `apiResponse<T>()` when a screen
+also needs the server's success message or response metadata.
 
 | Method | Route                | Handler file               | Purpose                                                        |
 | ------ | -------------------- | -------------------------- | -------------------------------------------------------------- |
@@ -181,7 +229,7 @@ Follows are stored in a separate `Follow` collection. If Alice follows Bob, Alic
 | PUT    | `/api/users/:userId/follow` | Follow this user (session required)        |
 | DELETE | `/api/users/:userId/follow` | Unfollow this user (session required)      |
 
-All three return `{ followerCount, followingCount, followedByMe }`. Counts describe the target user; `followedByMe` indicates whether the signed-in viewer follows that target and is false for guests. Responses are not cached. These endpoints expose counts and relationship state, not email addresses or follower lists.
+All three return `{ followerCount, followingCount, followedByMe }` inside `data`. Counts describe the target user; `followedByMe` indicates whether the signed-in viewer follows that target and is false for guests. Responses are not cached. These endpoints expose counts and relationship state, not email addresses or follower lists.
 
 Mutation requests need no body. The acting user always comes from the session. User IDs must be valid MongoDB ObjectIds; missing users return 404, malformed IDs return 400, and self-follow/unfollow requests return 400. Both mutations are idempotent. Repeating a request leaves the same relationship state, and successful responses return counts from stored relationships.
 

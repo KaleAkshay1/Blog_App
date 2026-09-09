@@ -3,7 +3,9 @@ import { Comment } from '../models/comment.model.js'
 import { Notification } from '../models/notification.model.js'
 import { notifyActivity } from '../services/notification.service.js'
 import { logger } from '../config/logger.js'
-import { AppError } from '../utils/app-error.js'
+import ApiError from '../utils/ApiError.js'
+import ApiResponse from '../utils/ApiResponse.js'
+import asyncHandler from '../utils/asyncHandler.js'
 import {
   commentPopulation,
   commentResponse,
@@ -23,7 +25,7 @@ async function verifyNewCommentPost(comment) {
   }
 }
 
-export async function listComments(req, res) {
+export const listComments = asyncHandler(async (req, res) => {
   const { page, limit } = commentQuerySchema.parse(req.query)
   await requirePublishedPost(req.params.id)
   const filter = { post: req.params.id, parent: null }
@@ -48,16 +50,18 @@ export async function listComments(req, res) {
       ])
     : []
   const counts = new Map(replyCounts.map((item) => [String(item._id), item.count]))
-  res.json({
-    comments: comments.map((comment) => serializeComment(comment, counts.get(comment.id) || 0)),
-    total,
-    commentCount,
-    page,
-    pages: Math.ceil(total / limit),
-  })
-}
+  return res.status(200).json(
+    new ApiResponse(200, {
+      comments: comments.map((comment) => serializeComment(comment, counts.get(comment.id) || 0)),
+      total,
+      commentCount,
+      page,
+      pages: Math.ceil(total / limit),
+    }),
+  )
+})
 
-export async function createComment(req, res) {
+export const createComment = asyncHandler(async (req, res) => {
   const { content } = commentSchema.parse(req.body)
   const post = await requirePublishedPost(req.params.id)
   const comment = await Comment.create({ post: req.params.id, author: req.user._id, content })
@@ -75,10 +79,10 @@ export async function createComment(req, res) {
     userId: req.user.id,
     requestId: req.requestId,
   })
-  res.status(201).json(await commentResponse(comment))
-}
+  return res.status(201).json(new ApiResponse(201, await commentResponse(comment)))
+})
 
-export async function listReplies(req, res) {
+export const listReplies = asyncHandler(async (req, res) => {
   const { page, limit } = commentQuerySchema.parse(req.query)
   await requirePublishedPost(req.params.id)
   const parent = await Comment.findOne({
@@ -86,7 +90,7 @@ export async function listReplies(req, res) {
     post: req.params.id,
     parent: null,
   })
-  if (!parent) throw new AppError(404, 'This comment thread could not be found.')
+  if (!parent) throw new ApiError(404, 'This comment thread could not be found.')
   const filter = { post: req.params.id, parent: parent._id }
   const [comments, total] = await Promise.all([
     Comment.find(filter)
@@ -96,15 +100,17 @@ export async function listReplies(req, res) {
       .limit(limit),
     Comment.countDocuments(filter),
   ])
-  res.json({
-    comments: comments.map((comment) => serializeComment(comment)),
-    total,
-    page,
-    pages: Math.ceil(total / limit),
-  })
-}
+  return res.status(200).json(
+    new ApiResponse(200, {
+      comments: comments.map((comment) => serializeComment(comment)),
+      total,
+      page,
+      pages: Math.ceil(total / limit),
+    }),
+  )
+})
 
-export async function createReply(req, res) {
+export const createReply = asyncHandler(async (req, res) => {
   const { content } = commentSchema.parse(req.body)
   const post = await requirePublishedPost(req.params.id)
   const target = await Comment.findOne({
@@ -112,7 +118,7 @@ export async function createReply(req, res) {
     post: req.params.id,
     isDeleted: false,
   })
-  if (!target) throw new AppError(404, 'This comment is no longer available to reply to.')
+  if (!target) throw new ApiError(404, 'This comment is no longer available to reply to.')
   const comment = await Comment.create({
     post: req.params.id,
     author: req.user._id,
@@ -135,19 +141,19 @@ export async function createReply(req, res) {
     userId: req.user.id,
     requestId: req.requestId,
   })
-  res.status(201).json(await commentResponse(comment))
-}
+  return res.status(201).json(new ApiResponse(201, await commentResponse(comment)))
+})
 
 async function ownedComment(req) {
   await requirePublishedPost(req.params.id)
   const comment = await Comment.findOne({ _id: req.params.commentId, post: req.params.id })
-  if (!comment) throw new AppError(404, 'This comment could not be found.')
+  if (!comment) throw new ApiError(404, 'This comment could not be found.')
   if (String(comment.author) !== req.user.id)
-    throw new AppError(403, 'You can only change your own comments.')
+    throw new ApiError(403, 'You can only change your own comments.')
   return comment
 }
 
-export async function updateComment(req, res) {
+export const updateComment = asyncHandler(async (req, res) => {
   const { content } = commentSchema.parse(req.body)
   const existing = await ownedComment(req)
   const comment = await Comment.findOneAndUpdate(
@@ -155,17 +161,17 @@ export async function updateComment(req, res) {
     { $set: { content, editedAt: new Date() } },
     { returnDocument: 'after', runValidators: true },
   )
-  if (!comment) throw new AppError(404, 'This comment has been deleted.')
+  if (!comment) throw new ApiError(404, 'This comment has been deleted.')
   logger.info('Comment updated', {
     postId: req.params.id,
     commentId: comment.id,
     userId: req.user.id,
     requestId: req.requestId,
   })
-  res.json(await commentResponse(comment))
-}
+  return res.status(200).json(new ApiResponse(200, await commentResponse(comment)))
+})
 
-export async function deleteComment(req, res) {
+export const deleteComment = asyncHandler(async (req, res) => {
   const existing = await ownedComment(req)
   // Remove the text but retain the thread so other people's replies survive.
   const comment = await Comment.findByIdAndUpdate(
@@ -173,7 +179,7 @@ export async function deleteComment(req, res) {
     { $set: { content: '', isDeleted: true, editedAt: null } },
     { returnDocument: 'after' },
   )
-  if (!comment) throw new AppError(404, 'This comment could not be found.')
+  if (!comment) throw new ApiError(404, 'This comment could not be found.')
   logger.info('Comment deleted', {
     postId: req.params.id,
     commentId: comment.id,
@@ -181,5 +187,5 @@ export async function deleteComment(req, res) {
     requestId: req.requestId,
   })
   await Notification.deleteMany({ comment: comment._id })
-  res.json(await commentResponse(comment))
-}
+  return res.status(200).json(new ApiResponse(200, await commentResponse(comment)))
+})

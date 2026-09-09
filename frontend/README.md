@@ -50,6 +50,33 @@ frontend/
 
 For a page issue, find its route in `App.tsx`, then open its page in `pages/`. Shared rendering lives in `components/`, session state in `context/auth.tsx`, and request handling in `lib/api.ts` and `hooks/use-resource.ts`. Use browser developer tools to inspect the request and its JSON error, then follow the corresponding backend route if needed.
 
+## API responses and errors
+
+All API calls go through `src/lib/api.ts`. The backend returns successful responses as
+`{ status, data, message, success: true }`. Use `api<T>()` to get the payload from `data`, or
+`apiResponse<T>()` to get the full response, including its success message:
+
+```ts
+const { user } = await api<{ user: User | null }>('/auth/me')
+const result = await apiResponse('/posts/' + post.id + '/share', {
+  method: 'POST',
+  body: JSON.stringify({ email }),
+})
+toast.success(result.message)
+```
+
+`T` describes the payload, so callers do not unwrap `data` a second time. The `useResource<T>()`
+hook follows the same rule. Message-only actions return `data: null`.
+
+Failed HTTP requests throw `ApiError`, which extends `Error` and preserves the HTTP `status`,
+backend `message`, `success: false`, and the `error` array (including validation details).
+Existing inline errors and toasts use `error.message`; callers needing the status or details
+can narrow with `error instanceof ApiError`.
+
+The client checks the success response format before returning data. Malformed responses
+become request errors; connection failures use a friendly message. Cancellation remains an
+`AbortError`, including when a request is cancelled while its response body is being read.
+
 ## Commands
 
 Run these from `frontend`:

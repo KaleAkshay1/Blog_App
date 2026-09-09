@@ -1,11 +1,11 @@
 import { Follow } from '../models/follow.model.js'
 import { User } from '../models/user.model.js'
-import { AppError } from '../utils/app-error.js'
+import ApiError from '../utils/ApiError.js'
 import { logger } from '../config/logger.js'
 
 async function requireUser(userId) {
   if (!(await User.exists({ _id: userId }))) {
-    throw new AppError(404, 'This user could not be found.')
+    throw new ApiError(404, 'This user could not be found.')
   }
 }
 
@@ -22,7 +22,7 @@ export async function getFollowSummary(userId, viewerId) {
 
 export async function setFollowing({ followerId, followingId, followed, requestId }) {
   if (String(followerId).toLowerCase() === String(followingId).toLowerCase()) {
-    throw new AppError(400, 'You cannot follow yourself.')
+    throw new ApiError(400, 'You cannot follow yourself.')
   }
   await requireUser(followingId)
 

@@ -51,7 +51,7 @@ function client() {
     assert.equal(response.status, status, method + ' ' + path + ': ' + JSON.stringify(data))
     if (response.headers.get('set-cookie'))
       cookie = response.headers.get('set-cookie').split(';')[0]
-    return data
+    return response.ok ? data.data : data
   }
 }
 

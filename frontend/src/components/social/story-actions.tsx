@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Flag, Link as LinkIcon, LoaderCircle, Send, Share2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { api, type Post } from '@/lib/api'
+import { apiResponse, type Post } from '@/lib/api'
 import { useAuth } from '@/context/auth'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -64,7 +64,7 @@ function ShareDialog({
     setBusy(true)
     setError('')
     try {
-      const result = await api<{ message: string }>('/posts/' + post.id + '/share', {
+      const result = await apiResponse('/posts/' + post.id + '/share', {
         method: 'POST',
         body: JSON.stringify({ email }),
       })
@@ -172,7 +172,7 @@ function ReportDialog({
     setBusy(true)
     setError('')
     try {
-      const result = await api<{ message: string }>('/posts/' + post.id + '/reports', {
+      const result = await apiResponse('/posts/' + post.id + '/reports', {
         method: 'POST',
         body: JSON.stringify({ reason, details }),
       })
